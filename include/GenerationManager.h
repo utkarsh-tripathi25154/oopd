@@ -1,7 +1,9 @@
 #pragma once
 #include "UserDevice.h"
 #include "CellularCore.h"
-#include "CellTower.h"
+#include "basicIO.h"
+
+extern basicIO io;
 
 class GenerationManager {
 private:
@@ -24,9 +26,11 @@ private:
     int users_per_channel;
     int antenna_factor;
     bool mimo_enabled;
+    CellularCore<long>* core; // 🔥 ADDED
 
 public:
-    GenerationManager(int gen) : current_gen(gen), user_count(0), slot_count(0) {
+    GenerationManager(int gen, CellularCore<long>* c)
+        : current_gen(gen), user_count(0), slot_count(0), core(c) {
         initializeFromGeneration(gen);
     }
 
@@ -42,7 +46,6 @@ public:
             users_per_channel = 16;
             antenna_factor = 1;
             mimo_enabled = false;
-            // 2G: 5 channels of 200 kHz = 1 MHz (1800, 2000, 2200, 2400, 2600 MHz)
             slot_count = 0;
             for (int i = 0; i < 5; ++i) {
                 spectrum_slots[i].frequency_mhz = 1800 + (i * 200);
@@ -61,7 +64,6 @@ public:
             users_per_channel = 32;
             antenna_factor = 1;
             mimo_enabled = false;
-            // 3G: Same as 2G (1800 MHz base)
             slot_count = 0;
             for (int i = 0; i < 5; ++i) {
                 spectrum_slots[i].frequency_mhz = 1800 + (i * 200);
@@ -80,7 +82,6 @@ public:
             users_per_channel = 64;
             antenna_factor = 1;
             mimo_enabled = false;
-            // 3.5G: Same as 2G/3G (1800 MHz base)
             slot_count = 0;
             for (int i = 0; i < 5; ++i) {
                 spectrum_slots[i].frequency_mhz = 1800 + (i * 200);
@@ -95,17 +96,15 @@ public:
             i = 0; while (p[i] && i < 63) { protocol[i] = p[i]; ++i; } protocol[i] = '\0';
             messages_per_user = 10;
             total_spectrum_mhz = 1;
-            channel_bandwidth_mhz = 0.01; // 10 kHz
+            channel_bandwidth_mhz = 0.01;
             users_per_channel = 30;
             antenna_factor = 4;
             mimo_enabled = true;
-            // 4G: 1 MHz = 100 channels of 10 kHz
-            // Show 10 channels (every 10th) for readability
             slot_count = 0;
             for (int i = 0; i < 10; ++i) {
-                spectrum_slots[i].frequency_mhz = 1800 + (i * 10); // 1800, 1810, 1820... MHz
+                spectrum_slots[i].frequency_mhz = 1800 + (i * 10);
                 spectrum_slots[i].current_users = 0;
-                spectrum_slots[i].max_users = 120; // 30 * 4 MIMO * 10 subchannels
+                spectrum_slots[i].max_users = 120;
                 slot_count++;
             }
         } else if (gen == 6) {
@@ -115,16 +114,15 @@ public:
             i = 0; while (p[i] && i < 63) { protocol[i] = p[i]; ++i; } protocol[i] = '\0';
             messages_per_user = 8;
             total_spectrum_mhz = 1;
-            channel_bandwidth_mhz = 0.01; // 10 kHz
+            channel_bandwidth_mhz = 0.01;
             users_per_channel = 40;
             antenna_factor = 4;
             mimo_enabled = true;
-            // 4G+: Same as 4G but different user count
             slot_count = 0;
             for (int i = 0; i < 10; ++i) {
-                spectrum_slots[i].frequency_mhz = 1800 + (i * 10); // 1800, 1810, 1820... MHz
+                spectrum_slots[i].frequency_mhz = 1800 + (i * 10);
                 spectrum_slots[i].current_users = 0;
-                spectrum_slots[i].max_users = 160; // 40 * 4 MIMO * 10 subchannels
+                spectrum_slots[i].max_users = 160;
                 slot_count++;
             }
         } else if (gen == 7) {
@@ -133,42 +131,24 @@ public:
             const char* p = "OFDM + Massive MIMO";
             i = 0; while (p[i] && i < 63) { protocol[i] = p[i]; ++i; } protocol[i] = '\0';
             messages_per_user = 10;
-            total_spectrum_mhz = 11; // 1 MHz + 10 MHz
-            channel_bandwidth_mhz = 1.0; // 1 MHz
+            total_spectrum_mhz = 11;
+            channel_bandwidth_mhz = 1.0;
             users_per_channel = 30;
             antenna_factor = 16;
             mimo_enabled = true;
-            // 5G: 11 channels of 1 MHz starting at 1800 MHz
             slot_count = 0;
             for (int i = 0; i < 11; ++i) {
-                spectrum_slots[i].frequency_mhz = 1800 + (i * 1000); // 1800, 2800, 3800... MHz
+                spectrum_slots[i].frequency_mhz = 1800 + (i * 1000);
                 spectrum_slots[i].current_users = 0;
-                spectrum_slots[i].max_users = 480; // 30 * 16 MIMO
+                spectrum_slots[i].max_users = 480;
                 slot_count++;
             }
         }
     }
 
-    // 🔥 VALIDATE FREQUENCY IS IN RANGE FOR CURRENT GENERATION
     bool isValidFrequency(int freq) const {
-        if (current_gen == 2 || current_gen == 3 || current_gen == 4) {
-            // 2G/3G/3.5G: 1800 MHz band (5 channels of 200 kHz)
-            for (int i = 0; i < 5; ++i) {
-                if (spectrum_slots[i].frequency_mhz == freq) return true;
-            }
-            return false;
-        } else if (current_gen == 5 || current_gen == 6) {
-            // 4G/4G+: 1800 MHz band (10 channels for display)
-            for (int i = 0; i < 10; ++i) {
-                if (spectrum_slots[i].frequency_mhz == freq) return true;
-            }
-            return false;
-        } else if (current_gen == 7) {
-            // 5G: 11 channels of 1 MHz
-            for (int i = 0; i < 11; ++i) {
-                if (spectrum_slots[i].frequency_mhz == freq) return true;
-            }
-            return false;
+        for (int i = 0; i < slot_count; ++i) {
+            if (spectrum_slots[i].frequency_mhz == freq) return true;
         }
         return false;
     }
@@ -176,103 +156,107 @@ public:
     void addUser(int service_type, int freq) {
         if (user_count >= MAX_USERS) return;
 
-        // 🔥 VALIDATE FREQUENCY IS IN RANGE FOR THIS GENERATION
-        bool valid_freq = false;
+        // Validate frequency and slot
+        int slot_idx = -1;
         for (int i = 0; i < slot_count; ++i) {
             if (spectrum_slots[i].frequency_mhz == freq) {
                 if (spectrum_slots[i].current_users >= spectrum_slots[i].max_users) {
-                    return; // Slot full
+                    io.errorstring("❌ ERROR: Frequency ");
+                    io.errorint(freq);
+                    io.errorstring(" MHz is full.\n");
+                    return;
                 }
-                valid_freq = true;
+                slot_idx = i;
                 break;
             }
         }
-        if (!valid_freq) return; // Invalid frequency
-
-        int messages = messages_per_user;
-        if (current_gen == 2) {
-            if (service_type == 1) messages = 15;      // Voice
-            else if (service_type == 2) messages = 2;  // SMS
-            else if (service_type == 3) messages = 5;  // Data
-            else messages = 20;                        // Voice+Data
-        } else if (current_gen == 3) {
-            messages = 10; // Fixed for 3G
-        } else if (current_gen == 4) {
-            messages = 8;  // Fixed for 3.5G
-        } else if (current_gen == 5) {
-            if (service_type == 1) messages = 15;      // Voice
-            else if (service_type == 2) messages = 2;  // SMS
-            else if (service_type == 3) messages = 25; // Data
-            else messages = 40;                        // Voice+Data
-        } else if (current_gen == 6) {
-            if (service_type == 1) messages = 12;      // Voice
-            else if (service_type == 2) messages = 2;  // SMS
-            else if (service_type == 3) messages = 20; // Data
-            else messages = 32;                        // Voice+Data
-        } else if (current_gen == 7) {
-            if (service_type == 1) messages = 10;      // Voice
-            else if (service_type == 2) messages = 2;  // SMS
-            else if (service_type == 3) messages = 25; // Data
-            else messages = 15;                        // Voice+Data
+        if (slot_idx == -1) {
+            io.errorstring("❌ ERROR: Frequency ");
+            io.errorint(freq);
+            io.errorstring(" MHz is not valid for ");
+            io.errorstring(getTechName());
+            io.errorstring(" generation.\n");
+            return;
         }
 
+        // Compute messages
+        int messages = messages_per_user;
+        if (current_gen == 2) {
+            if (service_type == 1) messages = 15;
+            else if (service_type == 2) messages = 2;
+            else if (service_type == 3) messages = 5;
+            else messages = 20;
+        } else if (current_gen == 5) {
+            if (service_type == 1) messages = 15;
+            else if (service_type == 2) messages = 2;
+            else if (service_type == 3) messages = 25;
+            else messages = 40;
+        } else if (current_gen == 6) {
+            if (service_type == 1) messages = 12;
+            else if (service_type == 2) messages = 2;
+            else if (service_type == 3) messages = 20;
+            else messages = 32;
+        } else if (current_gen == 7) {
+            if (service_type == 1) messages = 10;
+            else if (service_type == 2) messages = 2;
+            else if (service_type == 3) messages = 25;
+            else messages = 15;
+        }
+
+        // 🔥 CORE OVERHEAD CHECK: reject if core cannot handle
+        if (!core->canRegister(messages)) {
+            io.errorstring("❌ Rejected: Cellular core cannot accommodate additional messages due to overhead limit.\n");
+            return;
+        }
+
+        // Register user
         users[user_count].setID(user_count + 1);
         users[user_count].setFrequency(freq);
         users[user_count].setMessages(messages);
         users[user_count].setServiceType(service_type);
         user_count++;
+        spectrum_slots[slot_idx].current_users++;
 
-        // Update spectrum slot
-        for (int i = 0; i < slot_count; ++i) {
-            if (spectrum_slots[i].frequency_mhz == freq) {
-                spectrum_slots[i].current_users++;
-                break;
-            }
-        }
+        // 🔥 Register with core
+        core->registerUser(users[user_count - 1].getID(), messages);
+
+        io.outputstring("✅ User added successfully.\n");
     }
 
     void removeUser(int id) {
         if (id <= 0 || id > user_count) return;
         int idx = id - 1;
-
         int freq = users[idx].getFrequency();
-        // Update spectrum slot
         for (int i = 0; i < slot_count; ++i) {
             if (spectrum_slots[i].frequency_mhz == freq) {
-                if (spectrum_slots[i].current_users > 0) {
+                if (spectrum_slots[i].current_users > 0)
                     spectrum_slots[i].current_users--;
-                }
                 break;
             }
         }
-
-        // Shift users
         for (int j = idx; j < user_count - 1; ++j)
             users[j] = users[j + 1];
         user_count--;
+        // Note: core->current_load is not decremented (optional enhancement)
     }
 
-    // 🔥 GETTERS
     const char* getTechName() const { return tech_name; }
     const char* getProtocol() const { return protocol; }
-    int getMessagesPerUser() const { return messages_per_user; }
     int getTotalSpectrumMHz() const { return total_spectrum_mhz; }
+    int getUserCount() const { return user_count; }
+    int getSlotCount() const { return slot_count; }
+    int getSlotFrequency(int idx) const { return spectrum_slots[idx].frequency_mhz; }
+    int getSlotUsers(int idx) const { return spectrum_slots[idx].current_users; }
+    int getSlotMaxUsers(int idx) const { return spectrum_slots[idx].max_users; }
     int getMaxUsersBySpectrum() const {
         int channels = static_cast<int>(total_spectrum_mhz / channel_bandwidth_mhz);
         int total = channels * users_per_channel;
         if (mimo_enabled) total *= antenna_factor;
         return total;
     }
-    int getUserCount() const { return user_count; }
-    int getSlotCount() const { return slot_count; }
-    int getSlotFrequency(int idx) const { return spectrum_slots[idx].frequency_mhz; }
-    int getSlotUsers(int idx) const { return spectrum_slots[idx].current_users; }
-    int getSlotMaxUsers(int idx) const { return spectrum_slots[idx].max_users; }
-    double getChannelBandwidthMHz() const { return channel_bandwidth_mhz; }
-    int getUsersPerChannel() const { return users_per_channel; }
     int getCoresNeededForFull() const {
         long full_load = static_cast<long>(getMaxUsersBySpectrum()) * messages_per_user;
-        long cap = 10000;
+        long cap = core->getMaxCapacity();
         if (cap <= 0) return 1;
         return (full_load + cap - 1) / cap;
     }

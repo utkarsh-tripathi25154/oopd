@@ -16,8 +16,8 @@ extern "C" long syscall3(long, long, long, long);
 
 // 🔥 NO UNUSED FUNCTIONS (int_to_cstr, strings_equal removed)
 
-// 🔥 GLOBAL MANAGERS
 GenerationManager* gen_managers[8] = {nullptr};
+CellularCore<long>* gen_cores[8] = {nullptr}; // ADD THIS LINE
 
 void runInteractiveMode();
 void runFileMode();
@@ -83,9 +83,12 @@ void runInteractiveMode() {
             continue;
         }
         
-        if (gen_managers[gen] == nullptr) {
-            gen_managers[gen] = new GenerationManager(gen);
-        }
+        // Replace 10000 with 100
+static CellularCore<long> shared_core(100); // 🔥 100 message limit
+if (gen_managers[gen] == nullptr) {
+    gen_cores[gen] = new CellularCore<long>(100);          // NEW: dedicated core
+    gen_managers[gen] = new GenerationManager(gen, gen_cores[gen]);
+}
         current_gen_unused = gen;
         current_manager = gen_managers[gen];
         
@@ -151,7 +154,7 @@ void runInteractiveMode() {
                 
                 current_manager->addUser(service, freq);
                 
-                io.outputstring("\n✅ User added!\n");
+              
             } 
             else if (c == 2) { // 🔥 REMOVE USER (was Add)
                 if (current_manager->getUserCount() == 0) {
@@ -288,7 +291,9 @@ void runFileMode() {
         return;
     }
     
-    GenerationManager local_manager(local_gen);
+   CellularCore<long> local_core(100); // 🔥 100 message limit
+// Independent core for file mode
+GenerationManager local_manager(local_gen, &local_core);
 
     // 🔥 PROCESS INPUT.TXT FOR SELECTED GENERATION
     long fd = syscall3(SYS_OPEN, (long)"input.txt", O_RDONLY, 0);
