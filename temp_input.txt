@@ -1,0 +1,58 @@
+# CELLULAR NETWORK SIMULATOR - MULTI-GENERATION INPUT
+# ================================================
+#
+# Format: <generation_number> <service_type> <frequency_mhz>
+# Generations: 2=2G, 3=3G, 4=3.5G, 5=4G, 6=4G+, 7=5G
+# Services: 1=Voice, 2=SMS, 3=Data, 4=Voice+Data
+#
+
+# 2G Users (TDMA, 16 users per 200 kHz)
+2 1 1800
+2 1 2000
+2 3 2200
+2 2 2400
+2 4 2600
+2 1 1800
+2 1 2000
+2 3 2200
+2 2 2400
+2 1 1800
+2 1 2000
+2 3 2200
+2 2 2400
+2 4 2600
+2 1 1800
+2 1 2000
+2 3 2200
+
+# 3G Users (CDMA, 32 users per 200 kHz)
+3 1 1800
+3 2 2000
+3 3 2200
+3 4 2400
+
+# 3.5G Users (HSPA, 64 users per 200 kHz)
+4 1 1800
+4 3 2000
+4 2 2200
+4 4 2400
+
+# 4G Users (OFDM, 30 users per 10 kHz, 4x MIMO)
+5 1 1800
+5 3 1810
+5 2 1820
+5 4 1830
+
+# 4G+ Users (LTE-A, 40 users per 10 kHz, 4x MIMO)
+6 1 1800
+6 3 1810
+6 2 1820
+6 4 1830
+
+# 5G Users (OFDM + Massive MIMO, 30 users per 1 MHz, 16x MIMO)
+7 1 1800
+7 3 2800
+7 2 3800
+7 4 4800
+
+# END OF FILE
